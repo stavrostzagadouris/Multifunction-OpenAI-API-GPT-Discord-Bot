@@ -6,7 +6,7 @@
 # Fill in variables in .env
 # Created Jan 2023
 # Last updated Aug 2024
-# Author Jiberwabish
+# Author Stavros
 
 
 ###
@@ -41,6 +41,7 @@ import urllib.parse    # For URL encoding
 from dotenv import load_dotenv
 # needed for most functions specific to this bot -- housed in botFunctions.py in this same folder
 import botFunctions
+import database
 #import botVariables
 load_dotenv() #pull .env variables in
 
@@ -84,6 +85,11 @@ h = os.environ['h']
 
 #conversation history array
 history = []
+
+#habits
+askingAboutHabits = 0
+user_habit_data = {}
+
 
 # Set up tokenizer
 #declare global totals
@@ -527,6 +533,7 @@ async def setFormerModel(formerModel):
 # function that runs as soon as bot comes online in Discord
 @client.event
 async def on_ready():
+    global askingAboutHabits, user_habit_data
     global modelTemp
     global fullDate
     global w
@@ -535,6 +542,11 @@ async def on_ready():
     #change this to the channel id where you want reminders to pop up
     main_channel_id = int(os.environ['mainChannelID'])
     main_channel_id_object = await client.fetch_channel(main_channel_id)
+        
+    # Setting up database
+    # ensure database tables are created
+    database.create_habits_table() # not used yet
+        
     #banner at the top of the terminal after script is run
     print("\x1b[36mWheatley\x1b[0m is now online in Discord.")
     print('Logged in as {0.user}'.format(client))
@@ -545,6 +557,7 @@ async def on_ready():
     await botFunctions.tealMessage(f"""👋Good day!\n💬Feel free to start chatting!\n🙏Done with the conversation? Just say 'thanks' somewhere in your message.\n\n
         🔎Need current info? Say the words 'search' and 'please' somewhere in your message.\n🖼️Want a picture or four? Mention the word 'picture' and 'generate' 
         and describe what you'd like to see, as well as how many.\n\n📲If you want to see more commands, just type !help\n\n
+        ✅Get reminded and encouraged to do your habits by using !addhabit and !myhabits to check status/streaks (restart bot after adding habit)
         🤖AI Models Available: \n!mini - GPT-4o-mini\n!gpt4 - GPT-4o\n!llm - {lmStudioModel}\n!groq - llama 3 70B""",main_channel_id_object)
     if is_port_listening(lmstudioIP,lmstudioPort) == True:
         await botFunctions.blackMessage(f"🟢 Local model {lmStudioModel} is currently online.", main_channel_id_object)
@@ -601,101 +614,148 @@ async def on_ready():
         history.append(gratitudes)
         await asyncio.sleep(14400)
 
+    # autocreate cronjobs on start
+    async def habitReminders(user_id,habit_name,streak):
+        global askingAboutHabits
+        #asks for your gratitudes daily
+        channel = await client.fetch_channel(main_channel_id)
+        #ask the bot to remind you of your habit
+        habitMessage = await ask_openai(f"""The user would like you to ask them if they did their habit {habit_name}.
+                                  Please remind the user, keeping in mind their current streak of {streak} days, to do their habit.
+                                  This will help incentivise them, they wouldn't want to lose their streak.                 
+                                   """,history)
+        await botFunctions.purpleMessage(f"{habitMessage}",channel)
+        #flag to ensure you capture users next message to then decide what type of database action to take
+        askingAboutHabits = 1
+        user_habit_data[user_id] = (habit_name, streak)
+
     # Start the scheduler
     if notifications == 1:
         scheduler.start()
-        scheduler.add_job(remind_exercises, 'cron', hour=19, minute=0, timezone=time_zone)
-        scheduler.add_job(daily_weather, 'cron', hour=7, minute=45, timezone=time_zone)
-        scheduler.add_job(gratitudes, 'cron', hour=21, minute=30, timezone=time_zone)
-    
+        # scheduler.add_job(remind_exercises, 'cron', hour=19, minute=0, timezone=time_zone)
+        # scheduler.add_job(daily_weather, 'cron', hour=7, minute=45, timezone=time_zone)
+        # scheduler.add_job(gratitudes, 'cron', hour=21, minute=30, timezone=time_zone)
+        # New code for dynamic habit reminders
+        habits = database.get_all_habits_with_times()
+        #print(habits)
+        for habit in habits:
+            user_id, habit_name, reminder_time, streak = habit
+            try:
+                hour = int(reminder_time[:2])
+                minute = int(reminder_time[2:])
+                print(f"Adding habit: {habit_name} for {user_id} at {hour}:{minute}")
+                scheduler.add_job(habitReminders, 'cron', hour=hour, minute=minute, args=[user_id, habit_name, streak], timezone=time_zone)
+            except Exception as e:
+                print(f"Error scheduling reminder for {habit_name}: {e}")
 # function that runs on event, so whenever you send something to the bot
 @client.event
 async def on_message(message):
-    global identity, history, totalCost, totalTokens, inputContent, outputFile, image, modelTemp, w, h, searchFlag
-    
-    #handles replying to the user
-    async def respond():
-        global identity, history,  totalCost, totalTokens, inputContent, outputFile, image, modelTemp, w, h
-        # 3 options here, if they said search, picture, or none of the above
-        if "search" in str.lower(message.content) and "please" in str.lower(message.content) :
-            print("search keyword said, forcing search")
-            # we're going to flip to llm here, and back again afterward
-            formerModel = model
-            channel = message.channel
-            question = message.content
-            streamedMessage = await channel.send("🔎")
-            try:
-                searchTerms = await ask_openai(f"Come up with 3 different web searches that you think would help you answer this question :```{question}``` Reply with ONLY the search terms, prepended by 1., 2. then 3. Do not use emojis or explain them.",history)
-                # let gpt4 make the terms, and the llm will respond to data
-                await streamedMessage.delete()
-                #strip quotes
-                searchTerms = searchTerms.replace('"', '')
-                #split the search terms into three separate variables
-                splitSearch=searchTerms.split("\n")
-                search1=splitSearch[0]
-                search2=splitSearch[1]
-                search3=splitSearch[2]
-                await silentMultiGoogle(search1, search2, search3, question, channel)
-                calculateCost()
-                await botFunctions.tealMessage(f"{model} 🎟️ Tokens {totalTokens} ",message.channel)
-                
-                
-            except Exception as e:
-                error_message = str(e)
-                print(e)            
-                await botFunctions.redMessage(f"Shoot..Something went wrong or timed out.\nHere's the error message:\n{error_message}",channel)
-                await setFormerModel(formerModel)
-        # Picture explicitly requested
-        elif any(word in str.lower(message.content) for word in ["picture", "image"]) and "generate" in str.lower(message.content):
-        #elif "picture" or "image" in str.lower(message.content) and "generate" in str.lower(message.content):
-            print("picture keyword said, generate picture(s)")
-            formerModel = model
-            channel = message.channel
-            if formerModel == lmStudioModel:
-                await setmodeMini() #create the prompt with gpt3.5 to not hog ram
-            numImages = await ask_openai(f"The user just asked for a picture: {message.content} \n How many pictures does it sound like they wanted? Answer with only the number, like 1, 2, 3 or 4", history)
-            print(f"Number of Images: {numImages}")
-            if "1" in numImages:
-                numImages = 1
-            elif "2" in numImages:
-                numImages = 2
-            elif "3" in numImages:
-                numImages = 3
-            elif "4" in numImages:
-                numImages = 4
-            else:
-                numImages = 4
-            if is_port_listening(comfyIP,comfyPort) == True:
-                await botFunctions.yellowMessage(f"Painting {numImages} {w}x{h} image(s)... 🖌🎨\nPlease wait for all of them⌛\n(about 12 seconds per picture⏲️)",channel)
-                for i in range(1, numImages + 1):
-                    #basis = await ask_openai("Describe this image in detail as instructed previously.", history)
-                    promptForImagine = await promptCreation(message.content,channel)
-                    print(f"\n\nPrompt {i} - {promptForImagine}")
-                    try:
-                        # Set a timeout for each image loading
-                        await asyncio.wait_for(botFunctions.comfyRefined(promptForImagine, 1, channel, w, h), timeout=120)  # e.g., 120 seconds
-                    except asyncio.TimeoutError:
-                        await channel.send(f"Timed out while generating image {i}. Please try again later.")  # Handle the timeout scenario
-                    except Exception as e:
-                        await channel.send(f"An error occurred: {e}")
-                calculateCost()
-                await botFunctions.tealMessage(f"{model} 🎟️ Tokens {totalTokens} ",message.channel)
-            else:
-                await botFunctions.tealMessage("Sorry, my image generator isn't currently online.",channel)
-            await setFormerModel(formerModel)
-            return            
-        # no search or picture wanted, streaming, default chat call:
-        else:
-            await stream_openai_multi(message.content,history,message.channel)
-            calculateCost()
-            await botFunctions.tealMessage(f"{model} 🎟️ Tokens {totalTokens} ",message.channel)
-            return
-        
-    # this is the main loop of the program, continuously loops through this section calling functions as
-    # the user specifies
-    # ignore messages sent by the bot itself to avoid infinite loops
+    global identity, history, totalCost, totalTokens, inputContent, outputFile, image, modelTemp, w, h, searchFlag, askingAboutHabits, user_habit_data
+    user_id = str(message.author.id)
+     # ignore messages sent by the bot itself to avoid infinite loops
     if message.author == client.user:
         return
+    # 3 options here, if they said search, picture, or none of the above
+    elif askingAboutHabits == 1 :
+        habit_name, streak = user_habit_data[user_id]
+        habitYesNo = await ask_openai(f"The user just said {message.content}. Does it sound like they did their habit/task? Reply with a single word, 'yes' or 'no' only.",history)
+        if "yes" in str.lower(habitYesNo):
+            await stream_openai_multi(f"Respond in a positive manner, the user DID do their habit/task for the day, which was {habit_name} and their streak is now {streak+1}!", history, message.channel)
+            database.mark_habit_completed(user_id, habit_name)
+        else:
+            await stream_openai_multi(f"Respond in an encouraging manner, the user did NOT do their habit/task for the day, which was {habit_name}. They just lost their streak of {streak}.!", history, message.channel)
+            #await botFunctions.tealMessage(f"{habitNo}",message.channel)
+            database.reset_habit_streak(user_id, habit_name)
+        askingAboutHabits = 0
+        return
+    elif "search" in str.lower(message.content) and "please" in str.lower(message.content) :
+        print("search keyword said, forcing search")
+        # we're going to flip to llm here, and back again afterward
+        formerModel = model
+        channel = message.channel
+        question = message.content
+        streamedMessage = await channel.send("🔎")
+        try:
+            searchTerms = await ask_openai(f"Come up with 3 different web searches that you think would help you answer this question :```{question}``` Reply with ONLY the search terms, prepended by 1., 2. then 3. Do not use emojis or explain them.",history)
+            # let gpt4 make the terms, and the llm will respond to data
+            await streamedMessage.delete()
+            #strip quotes
+            searchTerms = searchTerms.replace('"', '')
+            #split the search terms into three separate variables
+            splitSearch=searchTerms.split("\n")
+            search1=splitSearch[0]
+            search2=splitSearch[1]
+            search3=splitSearch[2]
+            await silentMultiGoogle(search1, search2, search3, question, channel)
+            calculateCost()
+            await botFunctions.tealMessage(f"{model} 🎟️ Tokens {totalTokens} ",message.channel)
+            
+            
+        except Exception as e:
+            error_message = str(e)
+            print(e)            
+            await botFunctions.redMessage(f"Shoot..Something went wrong or timed out.\nHere's the error message:\n{error_message}",channel)
+            await setFormerModel(formerModel)
+    # Picture explicitly requested
+    elif any(word in str.lower(message.content) for word in ["picture", "image"]) and "generate" in str.lower(message.content):
+    #elif "picture" or "image" in str.lower(message.content) and "generate" in str.lower(message.content):
+        print("picture keyword said, generate picture(s)")
+        formerModel = model
+        channel = message.channel
+        if formerModel == lmStudioModel:
+            await setmodeMini() #create the prompt with gpt3.5 to not hog ram
+        numImages = await ask_openai(f"The user just asked for a picture: {message.content} \n How many pictures does it sound like they wanted? Answer with only the number, like 1, 2, 3 or 4", history)
+        print(f"Number of Images: {numImages}")
+        if "1" in numImages:
+            numImages = 1
+        elif "2" in numImages:
+            numImages = 2
+        elif "3" in numImages:
+            numImages = 3
+        elif "4" in numImages:
+            numImages = 4
+        else:
+            numImages = 4
+        if is_port_listening(comfyIP,comfyPort) == True:
+            await botFunctions.yellowMessage(f"Painting {numImages} {w}x{h} image(s)... 🖌🎨\nPlease wait for all of them⌛\n(about 12 seconds per picture⏲️)",channel)
+            for i in range(1, numImages + 1):
+                #basis = await ask_openai("Describe this image in detail as instructed previously.", history)
+                promptForImagine = await promptCreation(message.content,channel)
+                print(f"\n\nPrompt {i} - {promptForImagine}")
+                try:
+                    # Set a timeout for each image loading
+                    await asyncio.wait_for(botFunctions.comfyRefined(promptForImagine, 1, channel, w, h), timeout=120)  # e.g., 120 seconds
+                except asyncio.TimeoutError:
+                    await channel.send(f"Timed out while generating image {i}. Please try again later.")  # Handle the timeout scenario
+                except Exception as e:
+                    await channel.send(f"An error occurred: {e}")
+            calculateCost()
+            await botFunctions.tealMessage(f"{model} 🎟️ Tokens {totalTokens} ",message.channel)
+        else:
+            await botFunctions.tealMessage("Sorry, my image generator isn't currently online.",channel)
+        await setFormerModel(formerModel)
+        return
+    #database functions, not working yet  
+    elif message.content.startswith("!addhabit"):
+        parts = message.content.split(" ")
+        if len(parts) >= 3:
+            habit_name = parts[1]
+            reminder_time = parts[2]
+            user_id = str(message.author.id)
+            database.create_habit(user_id, habit_name, reminder_time)
+            await botFunctions.tealMessage(f"Habit '{habit_name}' added!", message.channel)
+        else:
+            await botFunctions.redMessage("Please use the format: !addhabit [all one word, eg floss_teeth] [Reminder time in 24hr format eg 0945]", message.channel)
+    elif message.content.startswith("!myhabits"):
+        user_id = str(message.author.id)
+        habits = database.get_habits(user_id)
+        if habits:
+            message_text = "Your habits:\n"
+            for habit in habits:
+                message_text += f"- {habit[0]} (Streak: {habit[1]}, Last Completed: {habit[2]}, Reminder: {habit[3]})\n"
+            await botFunctions.tealMessage(message_text, message.channel)
+        else:
+            await botFunctions.redMessage("You have no habits yet!", message.channel)           
     #resets conversation history -- should be needed as saying 'thanks' to the bot resets it too  
     elif '!reset' in message.content:
         member=message.guild.me
@@ -705,6 +765,13 @@ async def on_message(message):
         calculateCost()
         await botFunctions.tealMessage(f"{model} 🎟️ Tokens {totalTokens} ",message.channel)
         return
+    elif "thank" in str.lower(message.content) and len(message.content.split()) < 10: 
+            print("User said thanks. Resetting convo.")
+            resetConvoHistory()
+            await stream_openai_multi(message.content,history,message.channel)
+            calculateCost()
+            await botFunctions.tealMessage(f"{model} 🎟️ Tokens {totalTokens} ",message.channel)
+            return
 
     # set the x and y resolution of comfy images
     elif "!rez" in message.content:
@@ -891,6 +958,8 @@ async def on_message(message):
             There are many commands as well:\n""", message.channel)
         await botFunctions.blackMessage(f"""**Summarize an article or youtube video:**\n
             Simply paste the youtube or article url into chat and hit enter. In the case of youtube it will pull the transcript and summarize it. You can then talk to the results by using the !16k flag to ensure you have the tokens to do so\n
+            **!addhabit** - Add a habit reminder, keeps track of streaks and encourages you! (restart bot after adding habit)\n
+            **!myhabits** - lists current habits\n
             **!braintrust** - dynamically makes  bunch of 'professional' identity's to answer your question\n
             **!ignore** - the bot won't react at all, so just in case you want to save yourself a message for later or something\n
             **!upscale AND attach an image. the image will be upscaled x4 on all dimensions and sent back
@@ -899,22 +968,13 @@ async def on_message(message):
             In this manner you can get around the 2000 word limit of discord. Especially useful when you want a massive prompt/response from GPT4.\n
             """,message.channel)
         return
-
-    #Streaming by default 
-    try:
-        # check to see if user is saying thank you and therefore ready for a new topic     
-        if "thank" in str.lower(message.content) and len(message.content.split()) < 10: 
-            print("User said thanks. Resetting convo.")
-            resetConvoHistory()
-            await respond()
-        else:
-            await respond()
-    except Exception as e:
-        error_message = str(e)
-        print(e)        
-        await botFunctions.redMessage(f"Shoot..Something went wrong or timed out.\nHere's the error message:\n{error_message}",message.channel)
-        return
-
+    # no search or picture wanted, streaming, default chat call:
+    else:
+        await stream_openai_multi(message.content,history,message.channel)
+        calculateCost()
+        await botFunctions.tealMessage(f"{model} 🎟️ Tokens {totalTokens} ",message.channel)
+        return  
+    
 #intent, in case I want to revisit:
 #Streaming by default - with intent
 #     try:            

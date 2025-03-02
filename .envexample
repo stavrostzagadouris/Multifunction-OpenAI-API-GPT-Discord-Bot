@@ -19,6 +19,7 @@ discordBotToken = ''
 
 ### ALL settings from this line down are OPTIONAL to set/change
 notifications = 0 # set to 1 and check the OPTIONAL NOTIFICATIONS section to configure your notification functions and timing if desired, you'll see I have weather messages and work out reminders set as default
+#notifications also needs to be 1 or habit tracking won't work either.
 location = ""
 weatherURL = "" #if using notifications, this will be the website scraped every morning to provide the weather
 
