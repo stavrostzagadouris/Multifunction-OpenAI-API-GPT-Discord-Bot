@@ -615,19 +615,25 @@ async def on_ready():
         await asyncio.sleep(14400)
 
     # autocreate cronjobs on start
-    async def habitReminders(user_id,habit_name,streak):
+    async def habitReminders(user_id,habit_name):
         global askingAboutHabits
         #asks for your gratitudes daily
         channel = await client.fetch_channel(main_channel_id)
+
+        # *** Dynamically get the streak from the database ***
+        # Retrieve the updated habit info
+        habit_data = database.get_habit(user_id, habit_name)
+        current_streak = habit_data[1]
+
         #ask the bot to remind you of your habit
         habitMessage = await ask_openai(f"""The user would like you to ask them if they did their habit {habit_name}.
-                                  Please remind the user, keeping in mind their current streak of {streak} days, to do their habit.
+                                  Please remind the user, keeping in mind their current streak of {current_streak} days, to do their habit.
                                   This will help incentivise them, they wouldn't want to lose their streak.                 
                                    """,history)
         await botFunctions.purpleMessage(f"{habitMessage}",channel)
         #flag to ensure you capture users next message to then decide what type of database action to take
         askingAboutHabits = 1
-        user_habit_data[user_id] = (habit_name, streak)
+        user_habit_data[user_id] = (habit_name, current_streak)
 
     # Start the scheduler
     if notifications == 1:
@@ -635,6 +641,7 @@ async def on_ready():
         # scheduler.add_job(remind_exercises, 'cron', hour=19, minute=0, timezone=time_zone)
         # scheduler.add_job(daily_weather, 'cron', hour=7, minute=45, timezone=time_zone)
         # scheduler.add_job(gratitudes, 'cron', hour=21, minute=30, timezone=time_zone)
+        
         # New code for dynamic habit reminders
         habits = database.get_all_habits_with_times()
         #print(habits)
@@ -644,7 +651,7 @@ async def on_ready():
                 hour = int(reminder_time[:2])
                 minute = int(reminder_time[2:])
                 print(f"Adding habit: {habit_name} for {user_id} at {hour}:{minute}")
-                scheduler.add_job(habitReminders, 'cron', hour=hour, minute=minute, args=[user_id, habit_name, streak], timezone=time_zone)
+                scheduler.add_job(habitReminders, 'cron', hour=hour, minute=minute, args=[user_id, habit_name], timezone=time_zone)
             except Exception as e:
                 print(f"Error scheduling reminder for {habit_name}: {e}")
 # function that runs on event, so whenever you send something to the bot
@@ -750,9 +757,9 @@ async def on_message(message):
         user_id = str(message.author.id)
         habits = database.get_habits(user_id)
         if habits:
-            message_text = "Your habits:\n"
+            message_text = "# Current habit stats:\n"
             for habit in habits:
-                message_text += f"- {habit[0]} (Streak: {habit[1]}, Last Completed: {habit[2]}, Reminder: {habit[3]})\n"
+                message_text += f"## {habit[0]}  :  Streak: {habit[1]}\nLast Completed: {habit[2]}, Reminder: {habit[3]}\n"
             await botFunctions.tealMessage(message_text, message.channel)
         else:
             await botFunctions.redMessage("You have no habits yet!", message.channel)           

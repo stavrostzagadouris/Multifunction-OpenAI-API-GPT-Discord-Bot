@@ -4,6 +4,7 @@
 # Date: Apr 12 2024
 
 import sqlite3
+import pytz
 from datetime import datetime
 
 DATABASE_NAME = 'wheatley.db'
@@ -46,8 +47,10 @@ def get_habits(user_id):
 def mark_habit_completed(user_id, habit_name):
     conn = sqlite3.connect(DATABASE_NAME)
     cursor = conn.cursor()
-    cursor.execute("UPDATE habits SET streak = streak + 1, last_completed = DATETIME('now'), completed = 1 WHERE user_id = ? AND habit_name = ?",
-                   (user_id, habit_name))
+    est = pytz.timezone('US/Eastern')
+    now = datetime.now(est)
+    cursor.execute("UPDATE habits SET streak = streak + 1, last_completed = ?, completed = 1 WHERE user_id = ? AND habit_name = ?",
+                   (now, user_id, habit_name))
     conn.commit()
     conn.close()
 
@@ -74,10 +77,21 @@ def get_all_habits():
     conn.close()
     return allhabits
 
+def get_habit(user_id, habit_name):
+    conn = sqlite3.connect(DATABASE_NAME)
+    cursor = conn.cursor()
+    cursor.execute('SELECT habit_name, streak, last_completed, reminder_time FROM habits WHERE user_id = ? AND habit_name = ?', (user_id, habit_name))
+    habit = cursor.fetchone()
+    conn.close()
+    return habit
+
+
 def update_habit(user_id, habit_name, new_reminder_time):
     conn = sqlite3.connect(DATABASE_NAME)
     cursor = conn.cursor()
-    cursor.execute('UPDATE habits SET reminder_time = ?, updated_at = DATETIME(\'now\') WHERE user_id = ? AND habit_name = ?', (new_reminder_time, user_id, habit_name))
+    est = pytz.timezone('US/Eastern')
+    now = datetime.now(est)
+    cursor.execute('UPDATE habits SET reminder_time = ?, updated_at = ? WHERE user_id = ? AND habit_name = ?', (new_reminder_time, now, user_id, habit_name))
     conn.commit()
     conn.close()
 
