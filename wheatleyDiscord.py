@@ -263,9 +263,9 @@ async def stream_openai_multi(prompt, history, channel):
     #send the first message that will continually be editted
     #send the first message that will continually be editted
     model_to_emoji = {
-    "gpt-4o-mini": "🤔",
+    "gpt-4.1-nano": "🤔",
     lmStudioModel: "💭",
-    "gpt-4o": "🧠",
+    "gpt-4.1": "🧠",
     groqModel: "🦙"
     }
     streamedMessage = await channel.send(model_to_emoji[model])
@@ -491,8 +491,8 @@ async def setmodeMini():
     global model_max_tokens
     model_max_tokens = 4096
     global model
-    model = "gpt-4o-mini"
-    print(f"Model set to gpt-4o-mini")
+    model = "gpt-4.1-nano"
+    print(f"Model set to gpt-4.1-nano")
 
 async def setModeGPT4():
     global aiclient, identity
@@ -501,8 +501,8 @@ async def setModeGPT4():
     global model_max_tokens
     model_max_tokens = 16000
     global model
-    model = "gpt-4o"
-    print(f"Model set to gpt-4o")
+    model = "gpt-4.1"
+    print(f"Model set to gpt-4.1")
 
 async def setModeGroq():
     global aiclient, identity
@@ -514,7 +514,7 @@ async def setModeGroq():
     print(f"Model set to {groqModel}")
 
 async def setFormerModel(formerModel):
-    if (formerModel == "gpt-4o-mini"):
+    if (formerModel == "gpt-4.1-nano"):
         await setmodeMini()
         return   
     elif (formerModel == lmStudioModel):
@@ -523,7 +523,7 @@ async def setFormerModel(formerModel):
         else: #lm studio isn't running
             await botFunctions.tealMessage(f"{lmStudioModel} is not online.. Sticking with {model}.",channel)
         return
-    elif (formerModel == "gpt-4o"):
+    elif (formerModel == "gpt-4.1"):
         await setModeGPT4()
         return
     elif (formerModel == groqModel):
@@ -558,7 +558,7 @@ async def on_ready():
         🔎Need current info? Say the words 'search' and 'please' somewhere in your message.\n🖼️Want a picture or four? Mention the word 'picture' and 'generate' 
         and describe what you'd like to see, as well as how many.\n\n📲If you want to see more commands, just type !help\n\n
         ✅Get reminded and encouraged to do your habits by using !addhabit and !myhabits to check status/streaks (restart bot after adding habit)
-        🤖AI Models Available: \n!mini - GPT-4o-mini\n!gpt4 - GPT-4o\n!llm - {lmStudioModel}\n!groq - llama 3 70B""",main_channel_id_object)
+        🤖AI Models Available: \n!mini - GPT-4.1-nano\n!gpt4 - GPT-4.1\n!llm - {lmStudioModel}\n!groq - llama 3 70B""",main_channel_id_object)
     if is_port_listening(lmstudioIP,lmstudioPort) == True:
         await botFunctions.blackMessage(f"🟢 Local model {lmStudioModel} is currently online.", main_channel_id_object)
     else:
@@ -928,12 +928,12 @@ async def on_message(message):
             print(e)        
             await botFunctions.redMessage(f"Shoot..Something went wrong or timed out.\nHere's the error message:\n{error_message}",message.channel)
         return
-    elif '!mini' in message.content:
-        await botFunctions.tealMessage("GPT4o-mini - Activated",message.channel)
+    elif '!nano' in message.content:
+        await botFunctions.tealMessage("gpt-4.1-nano - Activated",message.channel)
         await setmodeMini()
         return
     elif '!gpt4' in message.content:
-        await botFunctions.tealMessage("GPT4o - Activated",message.channel)
+        await botFunctions.tealMessage("gpt-4.1 - Activated",message.channel)
         await setModeGPT4()
         return
     elif '!groq' in message.content:
