@@ -42,3 +42,13 @@ h = 720
 # More Info: https://lmstudio.ai/
 lmstudioIP = ""
 lmstudioPort = ""
+
+# for optional flight data around your location openskyapi (free) required
+# enter your latitude, longitude and the radius you want to scan the air from that center point
+# then the bot will tell you whats in there air around you, their bearing and where to look to see them
+
+myLAT = 0
+myLON = 0
+myRADIUS = 0 
+flight_id = "opensky api key id"
+flight_secret = "opensky api key secret"

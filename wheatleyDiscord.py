@@ -42,6 +42,7 @@ from dotenv import load_dotenv
 # needed for most functions specific to this bot -- housed in botFunctions.py in this same folder
 import botFunctions
 import database
+import flightdata
 #import botVariables
 load_dotenv() #pull .env variables in
 
@@ -70,6 +71,9 @@ comfyPort = os.environ['comfyPort']
 lmstudioIP = os.environ['lmstudioIP']
 lmstudioPort = os.environ['lmstudioPort']
 notifications = int(os.environ['notifications'])
+myLAT = float(os.environ['myLAT'])
+myLON = float(os.environ['myLON'])
+myRADIUS = float(os.environ['myRADIUS'])
 
 #model temperature, 0 is more precise answers, 1 is more creative, and you can use decimals
 modelTemp = float(os.environ['modelTemp'])
@@ -558,7 +562,7 @@ async def on_ready():
         🔎Need current info? Say the words 'search' and 'please' somewhere in your message.\n🖼️Want a picture or four? Mention the word 'picture' and 'generate' 
         and describe what you'd like to see, as well as how many.\n\n📲If you want to see more commands, just type !help\n\n
         ✅Get reminded and encouraged to do your habits by using !addhabit and !myhabits to check status/streaks (restart bot after adding habit)
-        🤖AI Models Available: \n!mini - GPT-4.1-nano\n!gpt4 - GPT-4.1\n!llm - {lmStudioModel}\n!groq - llama 3 70B""",main_channel_id_object)
+        🤖AI Models Available: \n!nano - GPT-4.1-nano\n!gpt4 - GPT-4.1\n!llm - {lmStudioModel}\n!groq - llama 3 70B""",main_channel_id_object)
     if is_port_listening(lmstudioIP,lmstudioPort) == True:
         await botFunctions.blackMessage(f"🟢 Local model {lmStudioModel} is currently online.", main_channel_id_object)
     else:
@@ -947,11 +951,14 @@ async def on_message(message):
         else: #lm studio isn't running
             await botFunctions.tealMessage(f"{lmStudioModel} is not online. Sticking with {model}.",message.channel)
         return
-        
+    elif '!flights' in message.content:
+        planesNearYou = flightdata.get_flights_around_location(myLAT,myLON,myRADIUS)
+        await botFunctions.tealMessage(f"{planesNearYou}",message.channel)
+        return
     # displays all commands
     elif '!help' in message.content:
         await botFunctions.tealMessage("👋Good day!\n💬Feel free to start chatting!\n🙏Done with the conversation? Just say 'thanks' somewhere in your message.\n\n🔎Need current info? Say the words 'search' and 'please' somewhere in your message.\n🖼️Want a picture or four? Mention the word 'picture' and 'generate' and describe what you'd like to see, as well as how many.\n\n📲If you want to see more commands, just type !help\n",message.channel)
-        await botFunctions.blueMessage(f"🤖AI Models Available: \n!mini - GPT-4o-mini\n!gpt4 - GPT-4o\n!llm - {lmStudioModel}\n!groq - llama 3 70B", message.channel )
+        await botFunctions.blueMessage(f"🤖AI Models Available: \n!nano - GPT-4.1-nano\n!gpt4 - GPT-4.1\n!llm - {lmStudioModel}\n!groq - llama 3 70B", message.channel )
         if is_port_listening(lmstudioIP,lmstudioPort) == True:
             await botFunctions.blackMessage(f"🟢 Local model {lmStudioModel} is currently online.", message.channel)
         else:
