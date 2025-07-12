@@ -954,6 +954,7 @@ async def on_message(message):
     elif '!flights' in message.content:
         planesNearYou = flightdata.get_flights_around_location(myLAT,myLON,myRADIUS)
         await botFunctions.tealMessage(f"{planesNearYou}",message.channel)
+        history.append({"role": "system", "content": f"You just pulled flight data for the user for the area. Here it is, just in case they ask about it: {planesNearYou}"})
         return
     # displays all commands
     elif '!help' in message.content:
