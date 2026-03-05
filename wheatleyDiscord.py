@@ -60,7 +60,7 @@ time_zone = timezone(os.environ['time_zone'])
 #set api keys and other variables (need to move this into a .env...)
 openaiapikey = os.environ['OPENAI_API_KEY']
 groqApiKey = os.environ['GROQ_API_KEY']
-aiclient = OpenAI(api_key=openaiapikey)
+# aiclient = OpenAI(api_key=openaiapikey) #open ai as default, dont want that anymore, so commented out
 discordBotToken = os.environ['discordBotToken']
 googleApiKey = os.environ['googleApiKey']
 googleEngineID = os.environ['googleEngineID']
@@ -82,6 +82,8 @@ modelTemp = float(os.environ['modelTemp'])
 model = os.environ['model']
 lmStudioModel = os.environ['lmStudioModel']
 groqModel = os.environ['groqModel']
+#set lmstudio as default model
+aiclient = OpenAI(base_url=f"http://{lmstudioIP}:{lmstudioPort}/v1", api_key="lm-studio")
 
 #default comfy image generation dimensions
 w = os.environ['w']
@@ -237,7 +239,6 @@ def calculateCost():
 async def ask_openai(prompt, history):
     global num_tokens
     global prompt_token_count
-    global model_max_tokens
     global model
     global aiclient
     # Generate user resp obj
@@ -253,7 +254,6 @@ async def stream_openai_multi(prompt, history, channel):
     global num_tokens
     global prompt_token_count
     global model
-    global model_max_tokens
     global aiclient
     newMessage = 0
     fullMessage = ""
@@ -267,8 +267,8 @@ async def stream_openai_multi(prompt, history, channel):
     #send the first message that will continually be editted
     #send the first message that will continually be editted
     model_to_emoji = {
-    "gpt-4.1-nano": "🤔",
-    lmStudioModel: "💭",
+    "gpt-4.1-nano": "💭",
+    lmStudioModel: "🤔",
     "gpt-4.1": "🧠",
     groqModel: "🦙"
     }
@@ -276,7 +276,7 @@ async def stream_openai_multi(prompt, history, channel):
 
 
     #aiclient = OpenAI()
-    response = aiclient.chat.completions.create(model=model, messages=history, temperature=modelTemp, stream=True)
+    response = aiclient.chat.completions.create(model=model, messages=history, stream=True)
 
     collected_messages = []
     second_collected_messages = []
@@ -483,8 +483,6 @@ async def promptCreation(prompt,channel):
 async def setModeLLM():
     global aiclient, identity
     aiclient = OpenAI(base_url=f"http://{comfyIP}:{comfyPort}/v1", api_key="lm-studio")
-    global model_max_tokens
-    model_max_tokens = 16000
     global model
     model = lmStudioModel
     print(f"Model set to {lmStudioModel}")
@@ -492,8 +490,6 @@ async def setModeLLM():
 async def setmodeMini():
     global aiclient, identity
     aiclient = OpenAI(api_key=os.environ['OPENAI_API_KEY'])
-    global model_max_tokens
-    model_max_tokens = 4096
     global model
     model = "gpt-4.1-nano"
     print(f"Model set to gpt-4.1-nano")
@@ -502,8 +498,6 @@ async def setModeGPT4():
     global aiclient, identity
     global aiclient
     aiclient = OpenAI(api_key=os.environ['OPENAI_API_KEY'])
-    global model_max_tokens
-    model_max_tokens = 16000
     global model
     model = "gpt-4.1"
     print(f"Model set to gpt-4.1")
@@ -511,8 +505,6 @@ async def setModeGPT4():
 async def setModeGroq():
     global aiclient, identity
     aiclient = Groq(api_key=groqApiKey)
-    global model_max_tokens
-    model_max_tokens = 8192
     global model
     model = groqModel
     print(f"Model set to {groqModel}")
@@ -793,7 +785,7 @@ async def on_message(message):
 
     #summarize article OR now Youtube transcript
     elif message.content.startswith('http') or message.content.startswith('www'):
-        resetConvoHistory()
+        #resetConvoHistory()
         formerModel = model
         vidID = ""        
         try:
