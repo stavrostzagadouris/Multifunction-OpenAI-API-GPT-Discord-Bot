@@ -299,7 +299,7 @@ async def stream_openai_multi(prompt, history, channel):
                         second_reply_content = ''.join(second_collected_messages)
                         counter += 1 # used to slow down how often chunks are actually printed/edited to discord
             
-                if counter % 40 == 0: # when the number of chunks is divisible by 10 (so every 10) print to discord
+                if counter % 10 == 0: # when the number of chunks is divisible by 10 (so every 10) print to discord
                     if len(fullMessage) >= 1800:  # Check if message length is close to the Discord limit
                         if newMessage == 0: # if this is the first time it's been over...
                             await streamedMessage.edit(content=fullMessage) # complete the first message 
