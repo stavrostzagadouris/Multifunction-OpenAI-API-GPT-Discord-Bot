@@ -1,4 +1,13 @@
-# Wheatley Discord Bot (ChatGPT backed OpenAI API bot to be precise GPT4o, 4omini, groq, lm-studio modes available)
+# This is sticking around for posterity but... 
+...in this day and age you're better off with Nanoclaw or Openclaw. 
+
+I've personally moved to Claude Code and Nanoclaw.
+
+I got into this project at the release of GPT3 and it's what got me started coding and working with AI.
+
+💗
+
+## Wheatley Discord Bot (ChatGPT backed OpenAI API bot to be precise GPT4o, 4omini, groq, lm-studio modes available)
 
 ## What is this?
 
